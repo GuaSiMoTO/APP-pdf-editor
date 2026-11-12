@@ -1,10 +1,13 @@
 import { ChevronRight } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { Link, Route, Routes, useParams } from 'react-router-dom'
-import { useServerStatus } from './api'
+import { useServerStatus, type ServerStatus } from './api'
 import { TOOLS, type Tool } from './tools'
 import { Loading } from './ui/Loading'
 import { NavBar } from './ui/NavBar'
+
+// Pantalla común de las herramientas del servidor (configuradas en ServerToolPage)
+const ServerToolPage = lazy(() => import('./pages/ServerToolPage'))
 
 // Cada herramienta se carga bajo demanda (el escáner arrastra OpenCV.js, ~13 MB).
 const TOOL_PAGES: Record<string, React.LazyExoticComponent<() => React.JSX.Element>> = {
@@ -37,9 +40,13 @@ function Home() {
     <div className="screen">
       <NavBar transparent />
       <main className="content fade-in">
-        <h1 className="large-title">Documentos</h1>
-        <span className={`status-dot${server === 'online' ? ' online' : ''}`}>
-          {server === 'online' ? 'Conectado al PC' : server === 'offline' ? 'PC no disponible' : 'Conectando…'}
+        <h1 className="large-title brand">
+          <img src="/logo.svg" alt="" width={40} height={40} />
+          {/* Logotipo "FOLIO" del logo original, coloreado por CSS según el tema */}
+          <span className="wordmark" role="img" aria-label="Folio" />
+        </h1>
+        <span className={`status-dot${server.state === 'online' ? ' online' : ''}`}>
+          {server.state === 'online' ? 'Conectado al PC' : server.state === 'offline' ? 'PC no disponible' : 'Conectando…'}
         </span>
 
         {groups.map((group) => (
@@ -47,7 +54,7 @@ function Home() {
             <h2 className="section-header">{group}</h2>
             <div className="list">
               {TOOLS.filter((t) => t.group === group).map((tool) => (
-                <ToolRow key={tool.id} tool={tool} serverOnline={server === 'online'} />
+                <ToolRow key={tool.id} tool={tool} server={server} />
               ))}
             </div>
           </section>
@@ -57,11 +64,14 @@ function Home() {
   )
 }
 
-function ToolRow({ tool, serverOnline }: { tool: Tool; serverOnline: boolean }) {
+function ToolRow({ tool, server }: { tool: Tool; server: ServerStatus }) {
   const Icon = tool.icon
-  const unavailable = tool.where === 'server' && !serverOnline
+  // Herramientas del servidor: necesitan el PC conectado y, algunas, Docker
+  const badge = tool.where !== 'server' || server.state === 'checking'
+    ? null
+    : server.state === 'offline' ? 'Sin PC' : server.tools[tool.id] ? null : 'Docker'
   return (
-    <Link to={`/tool/${tool.id}`} className={`row${unavailable ? ' disabled' : ''}`}>
+    <Link to={`/tool/${tool.id}`} className={`row${badge ? ' dimmed-row' : ''}`}>
       <span className="row-icon" style={{ background: `var(${tool.color})` }}>
         <Icon size={18} strokeWidth={2} />
       </span>
@@ -71,6 +81,7 @@ function ToolRow({ tool, serverOnline }: { tool: Tool; serverOnline: boolean }) 
       </span>
       <span className="row-accessory">
         {!tool.ready && <span className="badge">Pronto</span>}
+        {badge && <span className="badge">{badge}</span>}
         <ChevronRight size={18} strokeWidth={2.4} />
       </span>
     </Link>
@@ -88,6 +99,13 @@ function ToolRoute() {
     )
   }
   const tool = TOOLS.find((t) => t.id === id)
+  if (tool?.where === 'server' && tool.ready) {
+    return (
+      <Suspense fallback={<Loading label="Cargando…" />}>
+        <ServerToolPage key={id} id={id} />
+      </Suspense>
+    )
+  }
   return (
     <div className="screen">
       <NavBar title={tool?.name} back={{ to: '/', label: 'Inicio' }} />

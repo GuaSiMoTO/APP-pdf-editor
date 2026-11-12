@@ -19,7 +19,7 @@ interface ExportViewProps {
 }
 
 /** Pantalla final común: miniatura, nombre, tamaño y Compartir / Descargar. */
-export function ExportView({ files, title, detail, thumbUrl, back, zipName = 'Documentos.zip', extraActions }: ExportViewProps) {
+export function ExportView({ files, title, detail, thumbUrl, back, zipName = 'Folio.zip', extraActions }: ExportViewProps) {
   const navigate = useNavigate()
   const shareable = canShareFiles(files)
   const single = files.length === 1

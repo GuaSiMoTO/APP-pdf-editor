@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Proyecto
 
-App personal (un único usuario) para escanear documentos con el iPhone, firmarlos y editar PDFs con las herramientas típicas de iLovePDF. iLovePDF se usa solo como referencia de funcionalidades/UX: no copiar su código, assets, marca ni usar sus APIs.
+**Folio**: app personal (un único usuario) para escanear documentos con el iPhone, firmarlos y editar PDFs con las herramientas típicas de iLovePDF. iLovePDF se usa solo como referencia de funcionalidades/UX: no copiar su código, assets, marca ni usar sus APIs.
 
 Idioma: UI, comentarios y comunicación en español.
 
@@ -23,7 +23,7 @@ Estilo Apple: limpio, premium, minimalista. Todo nuevo componente debe seguirlo.
 - Tokens en `web/src/index.css` (`:root`): colores de sistema iOS en claro/oscuro automático (`--tint`, `--label*`, `--surface*`, `--c-<color>`), tipografía `-apple-system`. No introducir colores sueltos ni otra librería de UI.
 - Patrones disponibles: `NavBar` translúcida (`ui/NavBar.tsx`, atrás con chevron + texto), `.large-title`, listas agrupadas `.list > .row` (como Ajustes, con `.row-icon` de color), `.btn-primary/.btn-secondary`, `.segmented`, `.toolbar` inferior, `.empty`, HUD `ui/Loading.tsx`. Iconos: `lucide-react` (trazo fino, similar a SF Symbols).
 - Respetar zonas seguras del iPhone (`env(safe-area-inset-*)`) y objetivos táctiles de 44 px.
-- Nombre y logo definitivos aún pendientes: cambiar en `index.html`, `manifest` de `vite.config.ts` y `public/logo.svg` (luego regenerar iconos).
+- Marca: **Folio**. Logo original en `resources/icon.png` (logotipo horizontal sobre negro, no usar como icono); versión vectorial fiel en `resources/folio-icon.svg` (fondo a sangre) de la que salen todos los iconos de `web/public/` (`logo.svg` redondeado, PNG de la PWA, maskable al 80 %, `favicon.ico`). Si cambia el logo, editar el SVG y regenerar los PNG con sharp (no usar el preset de `pwa-assets-generator`, que añade relleno blanco). Logotipo «FOLIO» en `web/public/wordmark.png`: máscara (blanco + alfa) extraída del logo original; se pinta con CSS `mask` y la variable `--wordmark` (#121E47 en claro, blanco en oscuro). La clave `documentos.signatures` de localStorage conserva el nombre antiguo a propósito.
 
 ## Escáner (`web/src/scan/`)
 
@@ -61,6 +61,12 @@ Anotaciones (`web/src/annotate/`, herramienta "Añadir texto"):
 - "Tapar" es un rectángulo blanco encima: **no** es una redacción segura (el texto sigue en el PDF); la UI lo avisa.
 - Deshacer: `AnnotatePage` guarda instantáneas (`snapshot()`) antes de crear/borrar/editar y al empezar a mover (`onBegin`).
 - Arrastres y dibujo bloquean el scroll de iOS con `ui/scrollLock.ts` (`setScrollLocked`), también en las firmas.
+
+Herramientas del servidor (`server/app/tools.py` + `web/src/pages/ServerToolPage.tsx`):
+- Registro `TOOLS` en el servidor: cada `Tool` declara su función, extensiones aceptadas, sufijo del nombre de salida y los binarios que necesita (`requires`). `/api/health` devuelve `tools: {id: disponible}`; la Home marca "Docker" o "Sin PC" según eso.
+- Sin binarios (funcionan en Windows sin Docker): `protect`/`unlock` (pikepdf, AES-256 R=6), `repair` (pikepdf/qpdf, con Ghostscript como segundo intento), `pdf-to-word` (pdf2docx). Con Docker: `compress` (Ghostscript), `ocr` (OCRmyPDF + Tesseract spa/eng), `office-to-pdf` (LibreOffice con perfil aislado por petición).
+- Errores para el usuario: lanzar `ToolError("mensaje")` → 422 con `detail`. Semáforo de 2 trabajos simultáneos; carpeta temporal por petición borrada tras responder.
+- Frontend: añadir una herramienta de servidor = una entrada en `CONFIGS` de `ServerToolPage.tsx` (accept, opciones, validación, texto del resultado). `runServerTool` envía `file` + `options` (JSON) y lee el nombre de `Content-Disposition` y `X-Original-Size`.
 
 Pruebas: no hay suite en el repo; la geometría se ha verificado con scripts Node contra pdf-lib/pdf.js reales (Node 24 ejecuta `.ts` directamente; hace falta un hook de resolución para imports sin extensión).
 
@@ -101,5 +107,5 @@ docker compose up --build
 3. ✅ Firma manuscrita (dibujar, guardar, colocar sobre la página) — pendiente de validar en iPhone
 4. ✅ Organizar en local: unir, dividir, rotar, reordenar, borrar páginas — pendiente de validar en iPhone
 4b. ✅ Locales: imágenes ↔ PDF, marca de agua, numerar páginas — pendiente de validar en iPhone
-5. Herramientas de servidor: comprimir, OCR, conversiones, proteger/desbloquear
+5. ✅ Herramientas de servidor: comprimir, OCR, conversiones, proteger/desbloquear — proteger/desbloquear/reparar/PDF a Word probadas en local; comprimir/OCR/Office pendientes de probar en Docker
 6. ✅ Añadir texto y anotaciones (editar el texto existente de un PDF queda fuera de alcance) — pendiente de validar en iPhone

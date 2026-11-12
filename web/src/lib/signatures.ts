@@ -10,6 +10,7 @@ export interface SavedSignature {
   createdAt: number
 }
 
+// Clave histórica (nombre anterior de la app): no cambiarla o se pierden las firmas guardadas
 const KEY = 'documentos.signatures'
 
 export function loadSignatures(): SavedSignature[] {

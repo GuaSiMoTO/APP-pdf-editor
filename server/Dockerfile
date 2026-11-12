@@ -6,12 +6,14 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-# Etapa 2: API + binarios de procesamiento de PDF
+# Etapa 2: API + programas de procesamiento de PDF
 FROM python:3.13-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ghostscript qpdf \
-        ocrmypdf tesseract-ocr tesseract-ocr-spa tesseract-ocr-eng \
+        ghostscript qpdf pngquant \
+        tesseract-ocr tesseract-ocr-spa tesseract-ocr-eng \
         libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui \
+        # Fuentes métricamente compatibles con Calibri/Cambria/Arial/Times para Office → PDF
+        fonts-liberation fonts-crosextra-carlito fonts-crosextra-caladea fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

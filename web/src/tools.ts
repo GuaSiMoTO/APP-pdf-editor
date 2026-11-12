@@ -30,18 +30,18 @@ export const TOOLS: Tool[] = [
   { id: 'split', name: 'Dividir', description: 'Extrae rangos de páginas', group: 'Organizar', where: 'local', ready: true, icon: Split, color: '--c-orange' },
   { id: 'organize', name: 'Organizar páginas', description: 'Reordena, rota y elimina', group: 'Organizar', where: 'local', ready: true, icon: LayoutGrid, color: '--c-orange' },
 
-  { id: 'compress', name: 'Comprimir', description: 'Reduce el tamaño del archivo', group: 'Optimizar', where: 'server', ready: false, icon: Minimize2, color: '--c-green' },
-  { id: 'ocr', name: 'Reconocer texto', description: 'Texto seleccionable y buscable', group: 'Optimizar', where: 'server', ready: false, icon: ScanText, color: '--c-green' },
-  { id: 'repair', name: 'Reparar', description: 'Recupera PDFs dañados', group: 'Optimizar', where: 'server', ready: false, icon: Wrench, color: '--c-green' },
+  { id: 'compress', name: 'Comprimir', description: 'Reduce el tamaño del archivo', group: 'Optimizar', where: 'server', ready: true, icon: Minimize2, color: '--c-green' },
+  { id: 'ocr', name: 'Reconocer texto', description: 'Texto seleccionable y buscable', group: 'Optimizar', where: 'server', ready: true, icon: ScanText, color: '--c-green' },
+  { id: 'repair', name: 'Reparar', description: 'Recupera PDFs dañados', group: 'Optimizar', where: 'server', ready: true, icon: Wrench, color: '--c-green' },
 
-  { id: 'office-to-pdf', name: 'Office a PDF', description: 'Word, Excel, PowerPoint', group: 'Convertir', where: 'server', ready: false, icon: FileText, color: '--c-teal' },
-  { id: 'pdf-to-word', name: 'PDF a Word', description: 'Documento DOCX editable', group: 'Convertir', where: 'server', ready: false, icon: FileType, color: '--c-teal' },
+  { id: 'office-to-pdf', name: 'Office a PDF', description: 'Word, Excel, PowerPoint', group: 'Convertir', where: 'server', ready: true, icon: FileText, color: '--c-teal' },
+  { id: 'pdf-to-word', name: 'PDF a Word', description: 'Documento DOCX editable', group: 'Convertir', where: 'server', ready: true, icon: FileType, color: '--c-teal' },
   { id: 'jpg-to-pdf', name: 'Imágenes a PDF', description: 'JPG y PNG', group: 'Convertir', where: 'local', ready: true, icon: Images, color: '--c-teal' },
   { id: 'pdf-to-jpg', name: 'PDF a imágenes', description: 'Cada página en JPG', group: 'Convertir', where: 'local', ready: true, icon: ImageIcon, color: '--c-teal' },
 
   { id: 'watermark', name: 'Marca de agua', description: 'Texto o imagen sobre las páginas', group: 'Editar y seguridad', where: 'local', ready: true, icon: Stamp, color: '--c-purple' },
   { id: 'page-numbers', name: 'Numerar páginas', description: 'Añade números de página', group: 'Editar y seguridad', where: 'local', ready: true, icon: Hash, color: '--c-purple' },
   { id: 'annotate', name: 'Añadir texto', description: 'Texto, fecha, ✓, resaltar y dibujar', group: 'Editar y seguridad', where: 'local', ready: true, icon: Type, color: '--c-purple' },
-  { id: 'protect', name: 'Proteger', description: 'Cifra con contraseña', group: 'Editar y seguridad', where: 'server', ready: false, icon: Lock, color: '--c-gray' },
-  { id: 'unlock', name: 'Desbloquear', description: 'Quita la contraseña', group: 'Editar y seguridad', where: 'server', ready: false, icon: LockOpen, color: '--c-gray' },
+  { id: 'protect', name: 'Proteger', description: 'Cifra con contraseña', group: 'Editar y seguridad', where: 'server', ready: true, icon: Lock, color: '--c-gray' },
+  { id: 'unlock', name: 'Desbloquear', description: 'Quita la contraseña', group: 'Editar y seguridad', where: 'server', ready: true, icon: LockOpen, color: '--c-gray' },
 ]

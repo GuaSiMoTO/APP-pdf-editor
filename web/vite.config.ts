@@ -11,11 +11,11 @@ export default defineConfig({
     basicSsl(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'logo.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'logo.svg', 'wordmark.png'],
       manifest: {
-        name: 'Documentos',
-        short_name: 'Documentos',
-        description: 'Escanear, firmar y editar PDFs',
+        name: 'Folio',
+        short_name: 'Folio',
+        description: 'Escanea, firma y edita tus documentos',
         lang: 'es',
         theme_color: '#1f2937',
         background_color: '#111827',

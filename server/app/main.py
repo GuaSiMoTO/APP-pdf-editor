@@ -6,25 +6,20 @@ frontend compilado (web/dist), de modo que la PWA y la API comparten origen.
 """
 
 import os
-import shutil
 from pathlib import Path
 
 from fastapi import FastAPI
 
+from app.tools import availability
 from app.tools import router as tools_router
 
-app = FastAPI(title="Documentos API")
-
-# Binarios externos que usan las herramientas; /api/health informa de cuáles hay.
-EXTERNAL_BINARIES = ["gs", "qpdf", "ocrmypdf", "tesseract", "soffice"]
+app = FastAPI(title="Folio API")
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {
-        "status": "ok",
-        "binaries": {name: shutil.which(name) is not None for name in EXTERNAL_BINARIES},
-    }
+    # `tools`: qué herramientas del servidor pueden usarse ahora (fuera de Docker faltan binarios)
+    return {"status": "ok", "tools": availability()}
 
 
 app.include_router(tools_router, prefix="/api/tools")

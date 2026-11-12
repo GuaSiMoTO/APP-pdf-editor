@@ -1,0 +1,11 @@
+{
+  "name": "folio",
+  "private": true,
+  "description": "Atajos para lanzar Folio desde la raíz del proyecto",
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "api": "cd server && .venv\\Scripts\\fastapi dev app/main.py",
+    "build": "npm --prefix web run build",
+    "lint": "npm --prefix web run lint"
+  }
+}

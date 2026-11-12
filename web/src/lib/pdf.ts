@@ -15,7 +15,7 @@ export async function jpegsToPdf(images: Blob[], title?: string, opts: ImagePdfO
   const { pageSize = 'fit', margin = 0 } = opts
   const pdf = await PDFDocument.create()
   if (title) pdf.setTitle(title)
-  pdf.setCreator('Documentos')
+  pdf.setCreator('Folio')
 
   for (const blob of images) {
     const img = await pdf.embedJpg(await blob.arrayBuffer())

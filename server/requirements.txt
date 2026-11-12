@@ -1,1 +1,4 @@
 fastapi[standard]>=0.130
+pikepdf>=10
+pdf2docx>=0.5.13
+ocrmypdf>=17
