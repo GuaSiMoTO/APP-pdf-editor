@@ -1,8 +1,7 @@
 <p align="center">
-  <img src="web/public/logo.svg" alt="Folio" width="112" height="112">
+  <img src="/resources/icon.png" alt="Folio" width="112" height="112">
 </p>
 
-<h1 align="center">Folio</h1>
 
 <p align="center">
   Escanea, firma y edita PDFs desde el iPhone y el PC. Una app web instalable (PWA) de uso personal.
