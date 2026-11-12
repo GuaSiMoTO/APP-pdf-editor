@@ -8,6 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Idioma: UI, comentarios y comunicación en español.
 
+## Requisitos de todo cambio
+
+Antes de dar por terminado cualquier código nuevo, revisar:
+- **Seguridad**: validar entradas (tipo y tamaño de archivo, opciones, contraseñas), sanear nombres de archivo, no exponer detalles internos en mensajes al usuario ni secretos en logs.
+- **Escalabilidad**: memoria en iPhone (canvases grandes, cachés sin límite, liberar recursos al salir de pantalla), documentos de cientos de páginas, trabajos pesados del servidor acotados (semáforo, timeouts).
+- **Manejo de errores**: nada falla en silencio (ni `void promesa` sin `.catch`, ni `catch {}` vacío); mensajes en español comprensibles; timeouts en llamadas de red; el error original se conserva en el log.
+
 ## Decisiones de arquitectura (ya tomadas)
 
 - **PWA, no app nativa**: el usuario tiene iPhone + PC Windows (sin Mac ni cuenta Apple Developer). La app se instala desde Safari → "Añadir a pantalla de inicio".
@@ -24,6 +31,13 @@ Estilo Apple: limpio, premium, minimalista. Todo nuevo componente debe seguirlo.
 - Patrones disponibles: `NavBar` translúcida (`ui/NavBar.tsx`, atrás con chevron + texto), `.large-title`, listas agrupadas `.list > .row` (como Ajustes, con `.row-icon` de color), `.btn-primary/.btn-secondary`, `.segmented`, `.toolbar` inferior, `.empty`, HUD `ui/Loading.tsx`. Iconos: `lucide-react` (trazo fino, similar a SF Symbols).
 - Respetar zonas seguras del iPhone (`env(safe-area-inset-*)`) y objetivos táctiles de 44 px.
 - Marca: **Folio**. Logo original en `resources/icon.png` (logotipo horizontal sobre negro, no usar como icono); versión vectorial fiel en `resources/folio-icon.svg` (fondo a sangre) de la que salen todos los iconos de `web/public/` (`logo.svg` redondeado, PNG de la PWA, maskable al 80 %, `favicon.ico`). Si cambia el logo, editar el SVG y regenerar los PNG con sharp (no usar el preset de `pwa-assets-generator`, que añade relleno blanco). Logotipo «FOLIO» en `web/public/wordmark.png`: máscara (blanco + alfa) extraída del logo original; se pinta con CSS `mask` y la variable `--wordmark` (#121E47 en claro, blanco en oscuro). La clave `documentos.signatures` de localStorage conserva el nombre antiguo a propósito.
+
+## Errores y memoria (convenciones)
+
+- **Errores**: un mensaje para el usuario se lanza como `UserError` (`lib/errors.ts`), conservando el original en `cause`. Todo lo demás es un fallo técnico: `useTask` lo registra y muestra un mensaje genérico (`userMessage`). Las tareas largas usan `run(label, (signal) => ..., { cancellable: true })` y `<Loading onCancel>`. `ui/ErrorBoundary.tsx` evita pantallas en blanco; `main.tsx` registra rechazos no capturados.
+- **Red**: `api.ts` pone tiempo máximo a todo (`withTimeout`: 4 s el estado, 6–16 min las herramientas) y solo muestra el `detail` del servidor si es texto.
+- **Memoria (iPhone)**: páginas de PDF con `ui/usePageCanvas.ts` (renderiza cerca de pantalla, cancela y libera al alejarse, dpr ≤ 2, máx. 12 MP) + `ui/PageStatus.tsx`; miniaturas con `pageThumbnail` (JPEG en caché, liberadas en `closePdf`); canvases temporales con `releaseCanvas`. El escáner guarda las fotos como JPEG, no como canvas.
+- **Servidor**: límite de 200 MB por `Content-Length` (middleware en `main.py`) y al copiar (`_save_upload`); contraseñas ≤ 128 caracteres; los errores nunca repiten la entrada ni exponen detalles internos (hay tests). La API no tiene autenticación: solo para la red de casa.
 
 ## Escáner (`web/src/scan/`)
 
@@ -95,7 +109,10 @@ npx pwa-assets-generator --preset minimal-2023 public/logo.svg   # regenerar ico
 Backend (en `server/`, Windows / Git Bash):
 ```
 python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
-.venv/Scripts/fastapi dev app/main.py     # http://localhost:8000
+.venv/Scripts/uvicorn app.main:app --reload --reload-dir app --port 8000   # http://localhost:8000
+# (no usar `fastapi dev`: vigila también .venv y, al instalar paquetes, se queda con código viejo.
+#  En Windows, si el puerto 8000 sigue ocupado tras pararlo, buscar el proceso huérfano
+#  "C:\Python314\python.exe ... multiprocessing.spawn" y detenerlo)
 .venv/Scripts/python -m pip install -r requirements-dev.txt
 .venv/Scripts/python -m pytest -q          # tests (los de Ghostscript/OCR/LibreOffice se saltan fuera de Docker)
 .venv/Scripts/python -m pytest -q -k unlock   # filtrar por nombre

@@ -1,8 +1,13 @@
 // Utilidades de imagen con Canvas 2D (sin OpenCV).
+import { UserError } from '../lib/errors'
 
 /** Lado mayor máximo de la foto de trabajo: cabe holgado en los límites de canvas de iOS
  *  y da ~300 ppp en A4 tras el recorte. */
 const MAX_SOURCE_SIDE = 3000
+/** Archivos mayores no se intentan decodificar (una foto de iPhone ocupa 2–8 MB). */
+const MAX_IMAGE_BYTES = 40 * 1024 * 1024
+/** Píxeles máximos de la imagen original: decodificarla ya reserva esa memoria (4 bytes/px). */
+const MAX_IMAGE_PIXELS = 50_000_000
 
 export function createCanvas(width: number, height: number): HTMLCanvasElement {
   const c = document.createElement('canvas')
@@ -11,14 +16,30 @@ export function createCanvas(width: number, height: number): HTMLCanvasElement {
   return c
 }
 
-/** Decodifica una foto (respetando la orientación EXIF, que Safari aplica al <img>)
+/** Libera la memoria de un canvas que ya no se usa. Safari iOS tarda en recolectarla
+ *  y tiene un límite total de memoria de canvas; ponerlo a 0×0 la libera al momento. */
+export function releaseCanvas(canvas: HTMLCanvasElement | null | undefined): void {
+  if (!canvas) return
+  canvas.width = 0
+  canvas.height = 0
+}
+
+/** Decodifica una imagen (respetando la orientación EXIF, que Safari aplica al <img>)
  *  y la reduce a MAX_SOURCE_SIDE. */
-export async function loadImageFile(file: File, maxSide = MAX_SOURCE_SIDE): Promise<HTMLCanvasElement> {
+export async function loadImageFile(file: Blob, maxSide = MAX_SOURCE_SIDE): Promise<HTMLCanvasElement> {
+  if (file.size > MAX_IMAGE_BYTES) throw new UserError('La imagen es demasiado grande (máximo 40 MB).')
   const url = URL.createObjectURL(file)
   try {
     const img = new Image()
     img.src = url
-    await img.decode()
+    try {
+      await img.decode()
+    } catch (err) {
+      throw new UserError('No se puede leer la imagen. Prueba con una foto JPG, PNG o HEIC.', { cause: err })
+    }
+    if (img.naturalWidth * img.naturalHeight > MAX_IMAGE_PIXELS) {
+      throw new UserError('La imagen tiene demasiada resolución (máximo 50 megapíxeles).')
+    }
     const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight))
     const canvas = createCanvas(img.naturalWidth * scale, img.naturalHeight * scale)
     const ctx = canvas.getContext('2d')!
@@ -55,6 +76,6 @@ export function rotate(source: HTMLCanvasElement, quarterTurns: number): HTMLCan
 
 export function toJpeg(canvas: HTMLCanvasElement, quality = 0.85): Promise<Blob> {
   return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo generar la imagen'))), 'image/jpeg', quality),
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('canvas.toBlob devolvió null'))), 'image/jpeg', quality),
   )
 }

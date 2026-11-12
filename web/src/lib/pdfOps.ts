@@ -1,4 +1,5 @@
 // Operaciones de páginas con pdf-lib (en el navegador): unir, extraer, reordenar, girar.
+import { UserError } from './errors'
 import { degrees, PDFDocument } from 'pdf-lib'
 
 /** Página de salida: página `page` (0-based) del documento fuente `source`, con giro extra opcional. */
@@ -13,9 +14,9 @@ async function loadSource(bytes: ArrayBuffer): Promise<PDFDocument> {
     return await PDFDocument.load(bytes)
   } catch (err) {
     if ((err as Error).name === 'EncryptedPDFError' || /encrypt/i.test((err as Error).message)) {
-      throw new Error('Uno de los PDF está protegido con contraseña. Desbloquéalo primero.')
+      throw new UserError('Uno de los PDF está protegido con contraseña. Desbloquéalo primero.', { cause: err })
     }
-    throw err
+    throw new UserError('Uno de los archivos no es un PDF válido o está dañado. Prueba con la herramienta Reparar.', { cause: err })
   }
 }
 
@@ -56,14 +57,14 @@ export function parseRanges(text: string, pageCount: number): number[][] {
     const token = raw.trim()
     if (!token) continue
     const m = token.match(/^(\d+)\s*(?:-\s*(\d+))?$/)
-    if (!m) throw new Error(`"${token}" no es un rango válido`)
+    if (!m) throw new UserError(`"${token}" no es un rango válido`)
     const a = Number(m[1])
     const b = m[2] ? Number(m[2]) : a
-    if (a < 1 || b < 1 || a > pageCount || b > pageCount) throw new Error(`El documento tiene ${pageCount} páginas`)
-    if (b < a) throw new Error(`"${token}": el inicio es mayor que el final`)
+    if (a < 1 || b < 1 || a > pageCount || b > pageCount) throw new UserError(`El documento tiene ${pageCount} páginas`)
+    if (b < a) throw new UserError(`"${token}": el inicio es mayor que el final`)
     groups.push(Array.from({ length: b - a + 1 }, (_, i) => a - 1 + i))
   }
-  if (!groups.length) throw new Error('Escribe al menos un rango')
+  if (!groups.length) throw new UserError('Escribe al menos un rango')
   return groups
 }
 

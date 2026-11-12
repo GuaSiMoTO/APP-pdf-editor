@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useRef, useState, type PointerEvent } from 'react'
 import {
   bounds, HIGHLIGHT_OPACITY, markStrokes, markWidth, moved, resized, textBaselines, textLines,
   type Annot, type InkAnnot, type RectAnnot, type TextAnnot,
 } from '../lib/annotations'
-import { renderPage, type PdfDoc } from '../lib/pdfjs'
+import type { PdfDoc } from '../lib/pdfjs'
+import { PageStatus } from '../ui/PageStatus'
 import { setScrollLocked } from '../ui/scrollLock'
+import { usePageCanvas } from '../ui/usePageCanvas'
 
 export type Tool = 'select' | 'text' | 'date' | 'check' | 'cross' | 'highlight' | 'cover' | 'pen'
 
@@ -48,28 +50,9 @@ export function AnnotPage(props: Props) {
   const { doc, index, W, H, cssWidth, annots, selectedId, tool, style } = props
   const k = cssWidth / W // px por punto
   const cssHeight = H * k
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [visible, setVisible] = useState(false)
+  const { wrapRef, canvasRef, status } = usePageCanvas(doc, index, cssWidth)
   const [draft, setDraft] = useState<Annot | null>(null)
   const gesture = useRef<Gesture | null>(null)
-
-  useEffect(() => {
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && setVisible(true), { rootMargin: '800px 0px' })
-    io.observe(wrapRef.current!)
-    return () => io.disconnect()
-  }, [])
-
-  useEffect(() => {
-    if (!visible || !cssWidth) return
-    let cancelled = false
-    void doc.getPage(index + 1).then((p) => {
-      if (!cancelled && canvasRef.current) return renderPage(p, canvasRef.current, cssWidth)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [visible, doc, index, cssWidth])
 
   const toView = (e: PointerEvent): [number, number] => {
     const r = wrapRef.current!.getBoundingClientRect()
@@ -185,6 +168,7 @@ export function AnnotPage(props: Props) {
     <div ref={wrapRef} className={`annot-page${DRAWING.includes(tool) ? ' drawing' : ''}`}
       style={{ width: cssWidth, height: cssHeight }} data-page={index}>
       <canvas ref={canvasRef} style={{ width: cssWidth, height: cssHeight }} />
+      <PageStatus status={status} />
       <svg viewBox={`0 0 ${W} ${H}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
         onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
         {annots.map((a) => (

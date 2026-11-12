@@ -8,15 +8,18 @@ import { ExportView } from '../ui/ExportView'
 import { FitCanvas } from '../ui/FitCanvas'
 import { Loading } from '../ui/Loading'
 import { NavBar } from '../ui/NavBar'
+import { useTask } from '../ui/useTask'
 import { CropEditor } from './CropEditor'
 import { applyFilter, detectDocument, warpDocument, type ScanFilter } from './detect'
 import { defaultQuad, type Quad } from './geometry'
-import { loadImageFile, rotate, toJpeg } from './image'
+import { loadImageFile, releaseCanvas, rotate, toJpeg } from './image'
 
-/** Página ya escaneada. Se guarda la foto original y el recorte para poder re-editarla. */
+/** Página ya escaneada. Para poder re-editarla se guarda la foto original y el recorte.
+ *  La foto va como JPEG (1–2 MB), no como canvas (~36 MB a 3000 px): con muchas páginas
+ *  un canvas por página agota la memoria de Safari en iOS. */
 interface ScannedPage {
   id: string
-  source: HTMLCanvasElement
+  source: Blob
   quad: Quad
   rotation: number
   filter: ScanFilter
@@ -24,14 +27,18 @@ interface ScannedPage {
   url: string
 }
 
-/** Página en edición (recorte → filtro). */
+/** Página en edición (recorte → filtro). Solo hay una a la vez en memoria como canvas. */
 interface Draft {
   source: HTMLCanvasElement
+  /** JPEG de la foto si ya existía (re-edición): evita volver a comprimirla. */
+  sourceJpeg?: Blob
   quad: Quad
   rotation: number
   filter: ScanFilter
   editingId?: string
 }
+
+const SOURCE_JPEG_QUALITY = 0.92
 
 type View = 'pages' | 'crop' | 'filter' | 'export'
 
@@ -56,7 +63,7 @@ export default function ScanPage() {
   const [pages, setPages] = useState<ScannedPage[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
   const [warped, setWarped] = useState<HTMLCanvasElement | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
+  const { busy, run } = useTask()
   const [name, setName] = useState(defaultName)
   const [pdf, setPdf] = useState<File | null>(null)
 
@@ -73,17 +80,12 @@ export default function ScanPage() {
   }, [pages])
   useEffect(() => () => pagesRef.current.forEach((p) => URL.revokeObjectURL(p.url)), [])
 
-  const run = async (label: string, task: () => Promise<void>) => {
-    setBusy(label)
-    try {
-      await nextFrame()
-      await task()
-    } catch (err) {
-      console.error(err)
-      alert(`Algo ha fallado: ${(err as Error).message}`)
-    } finally {
-      setBusy(null)
-    }
+  /** Descarta la página en edición liberando sus canvases. */
+  const discardDraft = () => {
+    releaseCanvas(draft?.source)
+    releaseCanvas(warped)
+    setWarped(null)
+    setDraft(null)
   }
 
   const getCv = async () => {
@@ -120,22 +122,33 @@ export default function ScanPage() {
   const toFilter = () =>
     run('Enderezando…', async () => {
       if (!draft) return
-      setWarped(warpDocument(await getCv(), draft.source, draft.quad))
+      const next = warpDocument(await getCv(), draft.source, draft.quad)
+      releaseCanvas(warped) // el de una pasada anterior por "Recortar"
+      setWarped(next)
       setView('filter')
     })
 
   const result = useMemo(() => {
     if (!warped || !draft || !cv) return null
-    return rotate(applyFilter(cv, warped, draft.filter), draft.rotation)
+    const filtered = applyFilter(cv, warped, draft.filter)
+    const rotated = rotate(filtered, draft.rotation)
+    if (filtered !== warped && filtered !== rotated) releaseCanvas(filtered) // intermedio
+    return rotated
   }, [cv, warped, draft])
+
+  // Al cambiar de filtro o giro, liberar el resultado anterior (nunca el canvas enderezado)
+  useEffect(() => () => {
+    if (result && result !== warped) releaseCanvas(result)
+  }, [result, warped])
 
   const savePage = () =>
     run('Guardando…', async () => {
       if (!draft || !result) return
       const jpeg = await toJpeg(result)
+      const source = draft.sourceJpeg ?? (await toJpeg(draft.source, SOURCE_JPEG_QUALITY))
       const page: ScannedPage = {
         id: draft.editingId ?? crypto.randomUUID(),
-        source: draft.source,
+        source,
         quad: draft.quad,
         rotation: draft.rotation,
         filter: draft.filter,
@@ -149,24 +162,23 @@ export default function ScanPage() {
         URL.revokeObjectURL(old.url)
         return prev.map((p) => (p.id === page.id ? page : p))
       })
-      setWarped(null)
+      discardDraft()
       await openNextInQueue()
     })
 
   const cancelDraft = () => {
-    setWarped(null)
-    if (draft?.editingId || queueRef.current.length === 0) {
-      setDraft(null)
-      setView('pages')
-    } else {
-      void run('Detectando documento…', openNextInQueue)
-    }
+    const editing = !!draft?.editingId
+    discardDraft()
+    if (editing || queueRef.current.length === 0) setView('pages')
+    else void run('Detectando documento…', openNextInQueue)
   }
 
-  const editPage = (page: ScannedPage) => {
-    setDraft({ source: page.source, quad: page.quad, rotation: page.rotation, filter: page.filter, editingId: page.id })
-    setView('crop')
-  }
+  const editPage = (page: ScannedPage) =>
+    run('Abriendo página…', async () => {
+      const source = await loadImageFile(page.source)
+      setDraft({ source, sourceJpeg: page.source, quad: page.quad, rotation: page.rotation, filter: page.filter, editingId: page.id })
+      setView('crop')
+    })
 
   const deletePage = (page: ScannedPage) => {
     URL.revokeObjectURL(page.url)

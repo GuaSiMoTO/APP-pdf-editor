@@ -31,6 +31,12 @@ log = logging.getLogger("tools")
 router = APIRouter()
 
 MAX_UPLOAD = 200 * 1024 * 1024
+MAX_PASSWORD = 128
+MAX_NAME_STEM = 120  # caracteres del nombre original que se conservan en la respuesta
+# Límites de tiempo de los procesos externos (el cliente espera algo más: web/src/api.ts)
+PROCESS_TIMEOUT = 300
+OCR_TIMEOUT = 900
+_CHUNK = 1024 * 1024
 # OCR y LibreOffice consumen mucha CPU/RAM: como mucho 2 trabajos a la vez
 _slots = threading.Semaphore(2)
 
@@ -50,7 +56,6 @@ class Tool:
     out_ext: str
     media_type: str
     requires: tuple[str, ...] = ()
-    timeout: int = 300
 
     def available(self) -> bool:
         return all(shutil.which(b) for b in self.requires)
@@ -72,6 +77,17 @@ def _open_pdf(path: Path, password: str = "") -> pikepdf.Pdf:
         raise ToolError("El archivo no parece un PDF válido.") from exc
 
 
+def _save_upload(file: UploadFile, dest: Path) -> None:
+    """Copia la subida a disco cortando si supera MAX_UPLOAD."""
+    written = 0
+    with dest.open("wb") as fh:
+        while chunk := file.file.read(_CHUNK):
+            written += len(chunk)
+            if written > MAX_UPLOAD:
+                raise HTTPException(413, "El archivo es demasiado grande (máximo 200 MB).")
+            fh.write(chunk)
+
+
 # ---------------------------------------------------------------- herramientas
 
 GS_LEVELS = {"low": "/printer", "medium": "/ebook", "high": "/screen"}
@@ -83,7 +99,7 @@ def compress(inp: Path, wd: Path, opts: dict[str, str]) -> Path:
     level = GS_LEVELS.get(opts.get("level", "medium"), "/ebook")
     r = _run(["gs", "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.5", f"-dPDFSETTINGS={level}",
               "-dDetectDuplicateImages=true", "-dNOPAUSE", "-dBATCH", "-dQUIET",
-              f"-sOutputFile={out}", str(inp)], 300)
+              f"-sOutputFile={out}", str(inp)], PROCESS_TIMEOUT)
     if r.returncode != 0 or not out.exists():
         log.error("gs: %s", r.stderr[-2000:])
         raise ToolError("No se pudo comprimir el PDF.")
@@ -98,7 +114,7 @@ def ocr(inp: Path, wd: Path, opts: dict[str, str]) -> Path:
     out = wd / "out.pdf"
     lang = OCR_LANGS.get(opts.get("lang", "both"), "spa+eng")
     r = _run(["ocrmypdf", "-l", lang, "--rotate-pages", "--deskew", "--skip-text",
-              "--optimize", "1", "--output-type", "pdf", str(inp), str(out)], 900)
+              "--optimize", "1", "--output-type", "pdf", str(inp), str(out)], OCR_TIMEOUT)
     if r.returncode == 8:
         raise ToolError("El PDF está protegido con contraseña. Desbloquéalo primero.")
     if r.returncode == 2:
@@ -122,7 +138,7 @@ def repair(inp: Path, wd: Path, opts: dict[str, str]) -> Path:
         pass
     # Segundo intento: reescribir con Ghostscript, si está disponible
     if shutil.which("gs"):
-        r = _run(["gs", "-o", str(out), "-sDEVICE=pdfwrite", "-dQUIET", str(inp)], 300)
+        r = _run(["gs", "-o", str(out), "-sDEVICE=pdfwrite", "-dQUIET", str(inp)], PROCESS_TIMEOUT)
         if r.returncode == 0 and out.exists():
             return out
     raise ToolError("El PDF está demasiado dañado para recuperarlo.")
@@ -132,7 +148,7 @@ def office_to_pdf(inp: Path, wd: Path, opts: dict[str, str]) -> Path:
     outdir = wd / "out"
     profile = (wd / "lo-profile").as_uri()  # perfil aislado: permite conversiones simultáneas
     r = _run(["soffice", "--headless", "--norestore", f"-env:UserInstallation={profile}",
-              "--convert-to", "pdf", "--outdir", str(outdir), str(inp)], 300)
+              "--convert-to", "pdf", "--outdir", str(outdir), str(inp)], PROCESS_TIMEOUT)
     out = outdir / f"{inp.stem}.pdf"
     if r.returncode != 0 or not out.exists():
         log.error("soffice: %s %s", r.stdout[-1000:], r.stderr[-2000:])
@@ -160,6 +176,8 @@ def protect(inp: Path, wd: Path, opts: dict[str, str]) -> Path:
     password = opts.get("password", "")
     if len(password) < 4:
         raise ToolError("La contraseña debe tener al menos 4 caracteres.")
+    if len(password) > MAX_PASSWORD:
+        raise ToolError(f"La contraseña no puede tener más de {MAX_PASSWORD} caracteres.")
     out = wd / "out.pdf"
     with _open_pdf(inp) as pdf:
         if pdf.is_encrypted:
@@ -171,6 +189,8 @@ def protect(inp: Path, wd: Path, opts: dict[str, str]) -> Path:
 
 def unlock(inp: Path, wd: Path, opts: dict[str, str]) -> Path:
     password = opts.get("password", "")
+    if len(password) > MAX_PASSWORD:
+        raise ToolError("Contraseña incorrecta.")
     out = wd / "out.pdf"
     try:
         pdf = pikepdf.open(inp, password=password)
@@ -189,7 +209,7 @@ DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 TOOLS: dict[str, Tool] = {
     "compress": Tool(compress, PDF, " comprimido", ".pdf", "application/pdf", requires=("gs",)),
-    "ocr": Tool(ocr, PDF, " OCR", ".pdf", "application/pdf", requires=("ocrmypdf", "tesseract", "gs"), timeout=900),
+    "ocr": Tool(ocr, PDF, " OCR", ".pdf", "application/pdf", requires=("ocrmypdf", "tesseract", "gs")),
     "repair": Tool(repair, PDF, " reparado", ".pdf", "application/pdf"),
     "office-to-pdf": Tool(office_to_pdf, OFFICE, "", ".pdf", "application/pdf", requires=("soffice",)),
     "pdf-to-word": Tool(pdf_to_word, PDF, "", ".docx", DOCX),
@@ -208,7 +228,7 @@ def availability() -> dict[str, bool]:
 def run_tool(tool_id: str, file: UploadFile, background: BackgroundTasks, options: str = Form("{}")) -> FileResponse:
     tool = TOOLS.get(tool_id)
     if not tool:
-        raise HTTPException(404, f"Herramienta desconocida: {tool_id}")
+        raise HTTPException(404, "Herramienta desconocida.")  # sin repetir la entrada del cliente
     if not tool.available():
         raise HTTPException(503, "Esta herramienta necesita el servidor en Docker (faltan programas en el PC).")
 
@@ -226,10 +246,12 @@ def run_tool(tool_id: str, file: UploadFile, background: BackgroundTasks, option
     background.add_task(shutil.rmtree, wd, ignore_errors=True)  # se borra tras enviar la respuesta
     try:
         inp = wd / f"input{Path(name).suffix.lower()}"
-        with inp.open("wb") as fh:
-            shutil.copyfileobj(file.file, fh)
+        _save_upload(file, inp)
         with _slots:
             out = tool.run(inp, wd, opts)
+    except HTTPException:
+        shutil.rmtree(wd, ignore_errors=True)
+        raise
     except ToolError as exc:
         shutil.rmtree(wd, ignore_errors=True)
         raise HTTPException(422, str(exc)) from exc
@@ -241,6 +263,6 @@ def run_tool(tool_id: str, file: UploadFile, background: BackgroundTasks, option
     return FileResponse(
         out,
         media_type=tool.media_type,
-        filename=f"{Path(name).stem}{tool.suffix}{tool.out_ext}",
-        headers={"X-Original-Size": str(inp.stat().st_size), "Access-Control-Expose-Headers": "Content-Disposition, X-Original-Size"},
+        filename=f"{Path(name).stem[:MAX_NAME_STEM]}{tool.suffix}{tool.out_ext}",
+        headers={"X-Original-Size": str(inp.stat().st_size)},
     )

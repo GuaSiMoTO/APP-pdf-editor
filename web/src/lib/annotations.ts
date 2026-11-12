@@ -1,6 +1,7 @@
 // Anotaciones sobre páginas (texto, fecha, ✓/✗, resaltado, tapado, dibujo).
 // Coordenadas en puntos PDF "vistos" (origen arriba-izquierda, y hacia abajo); ver pageGeometry.ts.
 // La geometría (líneas base, trazos de ✓/✗, cajas) la comparten la vista SVG y el PDF final.
+import { UserError } from './errors'
 import { BlendMode, degrees, LineCapStyle, PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { viewOf } from './pageGeometry'
 
@@ -124,7 +125,7 @@ export async function applyAnnotations(bytes: ArrayBuffer, annots: Annot[]): Pro
           try {
             page.drawText(lines[i], { x, y, size: a.size, font, color, rotate })
           } catch {
-            throw new Error(`El texto «${lines[i]}» contiene caracteres no admitidos (p. ej. emojis).`)
+            throw new UserError(`El texto «${lines[i]}» contiene caracteres no admitidos (p. ej. emojis).`)
           }
         })
         break

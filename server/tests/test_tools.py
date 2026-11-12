@@ -166,3 +166,49 @@ def test_comprimir_no_devuelve_un_archivo_mayor(pdf_bytes: bytes):
     res = post("compress", pdf_bytes, level="high")
     assert res.status_code == 200
     assert len(res.content) <= len(pdf_bytes)
+
+
+# ---------------------------------------------------------------- seguridad
+
+
+def test_rechaza_por_content_length_antes_de_leer_el_cuerpo(monkeypatch, pdf_bytes: bytes):
+    import app.main as main
+
+    monkeypatch.setattr(main, "_MAX_BODY", 100)  # límite diminuto para no generar 200 MB
+    res = post("repair", pdf_bytes)
+    assert res.status_code == 413
+    assert "demasiado grande" in detail(res)
+
+
+def test_corta_la_copia_si_la_subida_supera_el_limite(monkeypatch, pdf_bytes: bytes):
+    import app.main as main
+    import app.tools as tools
+
+    monkeypatch.setattr(main, "_MAX_BODY", 10**9)  # deja pasar la cabecera...
+    monkeypatch.setattr(tools, "MAX_UPLOAD", 100)  # ...pero el archivo real excede el límite
+    res = post("repair", pdf_bytes)
+    assert res.status_code == 413
+
+
+def test_contrasena_demasiado_larga(pdf_bytes: bytes):
+    res = post("protect", pdf_bytes, password="x" * 129)
+    assert res.status_code == 422
+    assert "128" in detail(res)
+
+
+def test_el_404_no_repite_la_entrada_del_cliente():
+    res = post("<script>alert(1)</script>", b"x")
+    assert res.status_code == 404
+    assert "<script>" not in res.text
+
+
+def test_los_errores_internos_no_exponen_detalles(monkeypatch, pdf_bytes: bytes):
+    import app.tools as tools
+
+    def boom(*_args):
+        raise RuntimeError("/ruta/secreta: fallo interno")
+
+    monkeypatch.setitem(tools.TOOLS, "repair", tools.Tool(boom, tools.PDF, "", ".pdf", "application/pdf"))
+    res = post("repair", pdf_bytes)
+    assert res.status_code == 500
+    assert "secreta" not in res.text

@@ -1,8 +1,10 @@
 import { X } from 'lucide-react'
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
-import { renderPage, type PdfDoc } from '../lib/pdfjs'
-import type { Placement } from './stamp'
+import { useRef, type PointerEvent } from 'react'
+import type { PdfDoc } from '../lib/pdfjs'
+import { PageStatus } from '../ui/PageStatus'
+import { usePageCanvas } from '../ui/usePageCanvas'
 import { setScrollLocked } from '../ui/scrollLock'
+import type { Placement } from './stamp'
 
 const MIN_NW = 0.08
 
@@ -20,28 +22,8 @@ interface Props {
 
 /** Página del PDF (renderizada al hacerse visible) con las firmas colocadas encima. */
 export function PageView({ doc, index, width, aspect, placements, selectedId, onSelect, onChange, onDelete }: Props) {
-  const ref = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [visible, setVisible] = useState(false)
+  const { wrapRef: ref, canvasRef, status } = usePageCanvas(doc, index, width)
   const height = width * aspect
-
-  useEffect(() => {
-    const el = ref.current!
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && setVisible(true), { rootMargin: '800px 0px' })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
-  useEffect(() => {
-    if (!visible || !width) return
-    let cancelled = false
-    void doc.getPage(index + 1).then((page) => {
-      if (!cancelled && canvasRef.current) return renderPage(page, canvasRef.current, width)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [visible, doc, index, width])
 
   // Arrastre (mover o redimensionar) de una firma
   const drag = useRef<{ id: string; mode: 'move' | 'resize'; startX: number; startY: number; orig: Placement } | null>(null)
@@ -83,6 +65,7 @@ export function PageView({ doc, index, width, aspect, placements, selectedId, on
     <div ref={ref} className="pdf-page" style={{ width, height }} data-page={index}
       onPointerDown={() => onSelect(null)}>
       <canvas ref={canvasRef} style={{ width, height }} />
+      <PageStatus status={status} />
       {placements.map((p) => {
         const selected = p.id === selectedId
         return (

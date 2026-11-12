@@ -134,7 +134,7 @@ export default function ServerToolPage({ id }: { id: string }) {
   const [file, setFile] = useState<File | null>(null)
   const [opts, setOpts] = useState<Options>(config.defaults)
   const [result, setResult] = useState<{ r: ServerResult; thumb?: string } | null>(null)
-  const { busy, run } = useTask()
+  const { busy, run, cancel } = useTask()
   const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => () => {
@@ -142,14 +142,14 @@ export default function ServerToolPage({ id }: { id: string }) {
   }, [result])
 
   const execute = () =>
-    run(config.busy, async () => {
+    run(config.busy, async (signal) => {
       if (!file) return
       // La confirmación de contraseña es solo de la interfaz
       const send = Object.fromEntries(Object.entries(opts).filter(([k]) => k !== 'confirm'))
-      const r = await runServerTool(id, file, send)
+      const r = await runServerTool(id, file, send, signal)
       const thumb = r.file.type === 'application/pdf' ? await firstPageThumbnail(r.file).catch(() => undefined) : undefined
       setResult({ r, thumb })
-    })
+    }, { cancellable: true })
 
   if (result) {
     return (
@@ -205,7 +205,7 @@ export default function ServerToolPage({ id }: { id: string }) {
         </div>
       </footer>
       <PdfInput inputRef={input} accept={config.accept} onFiles={([f]) => setFile(f)} />
-      {busy && <Loading label={busy} />}
+      {busy && <Loading label={busy} onCancel={cancel} />}
     </div>
   )
 }

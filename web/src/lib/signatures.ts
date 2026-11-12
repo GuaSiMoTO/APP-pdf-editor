@@ -15,16 +15,29 @@ const KEY = 'documentos.signatures'
 
 export function loadSignatures(): SavedSignature[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '[]') as SavedSignature[]
+    const raw: unknown = JSON.parse(localStorage.getItem(KEY) ?? '[]')
+    // Descarta entradas corruptas en vez de romper la pantalla de firmar
+    return Array.isArray(raw) ? raw.filter(isSignature) : []
   } catch {
     return []
   }
 }
 
-export function storeSignatures(list: SavedSignature[]): void {
+function isSignature(s: unknown): s is SavedSignature {
+  const x = s as Partial<SavedSignature> | null
+  return !!x && typeof x.id === 'string' && typeof x.dataUrl === 'string'
+    && x.dataUrl.startsWith('data:image/png;base64,')
+    && typeof x.width === 'number' && x.width > 0 && typeof x.height === 'number' && x.height > 0
+}
+
+/** Guarda la lista. Devuelve false si no se pudo (almacenamiento lleno o modo privado):
+ *  quien llama debe avisar de que la firma no estará disponible la próxima vez. */
+export function storeSignatures(list: SavedSignature[]): boolean {
   try {
     localStorage.setItem(KEY, JSON.stringify(list))
-  } catch {
-    /* sin almacenamiento disponible */
+    return true
+  } catch (err) {
+    console.error('No se pudieron guardar las firmas', err)
+    return false
   }
 }

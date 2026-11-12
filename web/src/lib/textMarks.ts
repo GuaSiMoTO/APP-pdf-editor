@@ -1,6 +1,7 @@
 // Marcas de texto sobre páginas (marca de agua, números de página).
 // La disposición se calcula en coordenadas "vistas" con funciones puras que usan
 // tanto la vista previa (SVG) como el PDF final, para que coincidan.
+import { UserError } from './errors'
 import { degrees, PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { viewOf } from './pageGeometry'
 
@@ -131,7 +132,7 @@ export async function applyTextMarks(
       try {
         width = font.widthOfTextAtSize(m.text, m.size)
       } catch {
-        throw new Error('El texto contiene caracteres no admitidos (p. ej. emojis).')
+        throw new UserError('El texto contiene caracteres no admitidos (p. ej. emojis).')
       }
       const dx = m.align === 'start' ? 0 : m.align === 'middle' ? width / 2 : width
       const dy = m.anchor === 'center' ? (m.size * CAP_HEIGHT) / 2 : 0

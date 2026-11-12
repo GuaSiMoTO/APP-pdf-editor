@@ -85,15 +85,18 @@ export default function SignPage() {
     const sig: SavedSignature = { id: crypto.randomUUID(), createdAt: Date.now(), ...png }
     const list = [sig, ...signatures]
     setSignatures(list)
-    storeSignatures(list)
     setPad(false)
     place(sig)
+    if (!storeSignatures(list)) {
+      alert('La firma se ha añadido al documento, pero no se ha podido guardar en este dispositivo ' +
+        '(almacenamiento lleno o navegación privada). La próxima vez tendrás que dibujarla de nuevo.')
+    }
   }
 
   const deleteSignature = (id: string) => {
     const list = signatures.filter((s) => s.id !== id)
     setSignatures(list)
-    storeSignatures(list)
+    if (!storeSignatures(list)) alert('No se ha podido actualizar la lista de firmas guardadas.')
   }
 
   const addSignature = () => (signatures.length ? setSheet(true) : setPad(true))

@@ -3,7 +3,11 @@ import { zipSync } from 'fflate'
 /** ¿Puede el sistema compartir estos archivos? (en iOS abre la hoja de compartir:
  *  Guardar en Archivos, AirDrop, Mail...). */
 export function canShareFiles(files: File[]): boolean {
-  return typeof navigator.canShare === 'function' && navigator.canShare({ files })
+  try {
+    return typeof navigator.canShare === 'function' && navigator.canShare({ files })
+  } catch {
+    return false // algunos navegadores lanzan con tipos de archivo no admitidos
+  }
 }
 
 /** Debe llamarse directamente desde un gesto del usuario (Safari lo exige). */

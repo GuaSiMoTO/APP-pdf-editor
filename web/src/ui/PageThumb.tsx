@@ -1,26 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { renderPage, type PdfDoc } from '../lib/pdfjs'
-import { rotate } from '../scan/image'
-
-const THUMB_WIDTH = 180 // px CSS de render; se escala con CSS
-
-// Caché por documento: reordenar o girar no vuelve a renderizar la página.
-const cache = new WeakMap<PdfDoc, Map<number, Promise<HTMLCanvasElement>>>()
-
-function thumbnail(doc: PdfDoc, index: number): Promise<HTMLCanvasElement> {
-  let pages = cache.get(doc)
-  if (!pages) cache.set(doc, (pages = new Map()))
-  let p = pages.get(index)
-  if (!p) {
-    p = doc.getPage(index + 1).then(async (page) => {
-      const canvas = document.createElement('canvas')
-      await renderPage(page, canvas, THUMB_WIDTH)
-      return canvas
-    })
-    pages.set(index, p)
-  }
-  return p
-}
+import { pageThumbnail, type PdfDoc, type Thumb } from '../lib/pdfjs'
 
 interface Props {
   doc: PdfDoc
@@ -28,34 +7,55 @@ interface Props {
   rotation?: number // grados extra (múltiplo de 90)
 }
 
-/** Miniatura de una página; se renderiza al acercarse a la pantalla. */
+/** Proporción alto/ancho del hueco de la miniatura (ver .tile-frame en index.css). */
+const FRAME_ASPECT = 1.3
+
+/** Miniatura de una página. Se genera al acercarse a la pantalla y se guarda como JPEG
+ *  pequeño en caché (lib/pdfjs.ts). El giro se aplica con CSS, sin volver a renderizar. */
 export function PageThumb({ doc, index, rotation = 0 }: Props) {
-  const ref = useRef<HTMLCanvasElement>(null)
+  const ref = useRef<HTMLSpanElement>(null)
   const [visible, setVisible] = useState(false)
+  const [thumb, setThumb] = useState<Thumb | null>(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    const el = ref.current!
     const io = new IntersectionObserver(([e]) => e.isIntersecting && setVisible(true), { rootMargin: '600px 0px' })
-    io.observe(el)
+    io.observe(ref.current!)
     return () => io.disconnect()
   }, [])
 
   useEffect(() => {
     if (!visible) return
     let cancelled = false
-    void thumbnail(doc, index).then((base) => {
-      const canvas = ref.current
-      if (cancelled || !canvas) return
-      const img = rotate(base, rotation / 90)
-      canvas.width = img.width
-      canvas.height = img.height
-      canvas.getContext('2d')!.drawImage(img, 0, 0)
-      canvas.classList.add('ready')
-    })
+    pageThumbnail(doc, index).then(
+      (t) => !cancelled && setThumb(t),
+      (err) => {
+        if (cancelled) return
+        console.error(`Miniatura de la página ${index + 1}`, err)
+        setFailed(true)
+      },
+    )
     return () => {
       cancelled = true
     }
-  }, [visible, doc, index, rotation])
+  }, [visible, doc, index])
 
-  return <canvas ref={ref} className="page-thumb-canvas" width={100} height={141} />
+  // Ancho de la imagen (en % del hueco) para que, girada, quepa entera
+  let width = 100
+  if (thumb) {
+    const turned = rotation % 180 !== 0
+    const w = thumb.width
+    const h = thumb.height
+    const s = turned ? Math.min(1 / h, FRAME_ASPECT / w) : Math.min(1 / w, FRAME_ASPECT / h)
+    width = w * s * 100
+  }
+
+  return (
+    <span ref={ref} className={`page-thumb-box${failed ? ' failed' : ''}`} title={failed ? 'No se pudo mostrar la página' : undefined}>
+      {thumb && (
+        <img src={thumb.url} alt="" draggable={false} className="page-thumb-img"
+          style={{ width: `${width}%`, transform: `translate(-50%, -50%) rotate(${rotation}deg)` }} />
+      )}
+    </span>
+  )
 }

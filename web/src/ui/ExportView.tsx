@@ -26,8 +26,24 @@ export function ExportView({ files, title, detail, thumbUrl, back, zipName = 'Fo
   const total = files.reduce((n, f) => n + f.size, 0)
 
   const download = async () => {
-    if (single) downloadFile(files[0])
-    else downloadFile(await zipFiles(files, zipName))
+    try {
+      if (single) downloadFile(files[0])
+      else downloadFile(await zipFiles(files, zipName))
+    } catch (err) {
+      console.error('Descarga', err)
+      alert('No se ha podido descargar. Inténtalo de nuevo.')
+    }
+  }
+
+  // shareFiles ya ignora la cancelación del usuario; cualquier otro fallo (p. ej. iOS
+  // rechaza compartir si se perdió el gesto) se resuelve descargando el archivo.
+  const share = async () => {
+    try {
+      await shareFiles(files)
+    } catch (err) {
+      console.error('Compartir', err)
+      await download()
+    }
   }
 
   return (
@@ -44,7 +60,7 @@ export function ExportView({ files, title, detail, thumbUrl, back, zipName = 'Fo
         <p>{detail} · {formatBytes(total)}</p>
         <div className="actions">
           {shareable && (
-            <button type="button" className="btn btn-primary btn-block" onClick={() => void shareFiles(files)}>
+            <button type="button" className="btn btn-primary btn-block" onClick={() => void share()}>
               <Share size={20} /> Compartir o guardar
             </button>
           )}
