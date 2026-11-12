@@ -2,6 +2,7 @@ import { FileUp, LayoutGrid, RotateCcw, RotateCw, Trash } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { firstPageThumbnail } from '../lib/pdfjs'
 import { baseName, buildPdfs, safeFileName } from '../lib/pdfOps'
+import { toggled } from '../lib/sets'
 import { pagesLabel } from '../lib/share'
 import { loadPdfFile, useOpenPdf } from '../lib/usePdf'
 import { ExportView } from '../ui/ExportView'
@@ -35,13 +36,7 @@ export default function OrganizePage() {
       setSelected(new Set())
     })
 
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const toggle = (id: string) => setSelected((prev) => toggled(prev, id))
 
   const rotateSelected = (deg: number) =>
     setPages((prev) => prev.map((p) => (selected.has(p.id) ? { ...p, rotation: (p.rotation + deg + 360) % 360 } : p)))

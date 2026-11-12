@@ -84,6 +84,14 @@ Herramientas del servidor (`server/app/tools.py` + `web/src/pages/ServerToolPage
 
 Tests: la lógica de PDF y geometría se prueba con pdf-lib y pdf.js **reales** (sin mocks), leyendo el resultado como lo vería el usuario. `web/src/test/pdfHelpers.ts` tiene `TRICKY_PAGES` (páginas con /Rotate 90/180/270 y CropBox desplazado), `viewedText` y `viewedImageCorners`: cualquier código que coloque contenido en páginas debe probarse contra esas variantes. Los componentes React no tienen tests.
 
+## Patrón de pantallas
+
+Las pantallas (`*Page.tsx`) solo coordinan estado y eventos. La lógica va en módulos puros con test al lado, y la presentación en componentes:
+- Anotaciones: `annotate/gestures.ts` (crear/extender borradores, arrastrar, colocar con un toque), `history.ts` (`useUndoable`), `palette.ts` (colores y tamaños), `Toolbar.tsx`, `AnnotShape.tsx` (SVG). `AnnotPage.tsx` solo traduce eventos del puntero.
+- Dividir: `pages/splitPlan.ts`. Escáner: `scan/ScanViews.tsx` (vistas) y `scan/scanTypes.ts`. Conjuntos inmutables: `lib/sets.ts` (`toggled`, `range`).
+- Para funciones con fecha o id aleatorio, pasarlos como parámetro (`placeAt(..., id, now)`) para que los tests sean deterministas.
+- Un archivo `.tsx` exporta solo componentes (si no, oxlint avisa y se rompe la recarga en caliente): constantes en un `.ts` aparte.
+
 ## Estructura
 
 - `web/` — PWA: Vite + React + TypeScript, `react-router-dom`, `vite-plugin-pwa`. `src/tools.ts` es el catálogo de herramientas (cada una se marca `ready: true` al implementarla); `src/api.ts` es el cliente del backend.

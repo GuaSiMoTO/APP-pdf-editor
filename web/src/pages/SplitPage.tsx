@@ -1,7 +1,8 @@
 import { FileUp, Split } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
-import { baseName, buildPdfs, parseRanges, rangeLabel, safeFileName } from '../lib/pdfOps'
+import { baseName, buildPdfs, rangeLabel, safeFileName } from '../lib/pdfOps'
 import { firstPageThumbnail } from '../lib/pdfjs'
+import { range, toggled } from '../lib/sets'
 import { pagesLabel } from '../lib/share'
 import { loadPdfFile, useOpenPdf } from '../lib/usePdf'
 import { ExportView } from '../ui/ExportView'
@@ -10,10 +11,9 @@ import { NavBar } from '../ui/NavBar'
 import { OpenPdfEmpty, PdfInput } from '../ui/OpenPdfEmpty'
 import { PageTile } from '../ui/PageTile'
 import { useTask } from '../ui/useTask'
+import { actionLabel, defaultRanges, groupIndex, outputFileName, splitPlan, type SplitMode } from './splitPlan'
 
-type Mode = 'select' | 'ranges' | 'each'
-
-const MODES: { id: Mode; label: string }[] = [
+const MODES: { id: SplitMode; label: string }[] = [
   { id: 'select', label: 'Extraer' },
   { id: 'ranges', label: 'Por rangos' },
   { id: 'each', label: 'Cada página' },
@@ -21,7 +21,7 @@ const MODES: { id: Mode; label: string }[] = [
 
 export default function SplitPage() {
   const [doc, setDoc] = useOpenPdf()
-  const [mode, setMode] = useState<Mode>('select')
+  const [mode, setMode] = useState<SplitMode>('select')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [ranges, setRanges] = useState('')
   const [output, setOutput] = useState<{ files: File[]; thumb?: string; detail: string } | null>(null)
@@ -34,37 +34,18 @@ export default function SplitPage() {
       const d = await loadPdfFile(file)
       setDoc(d)
       setSelected(new Set())
-      setRanges(d.aspects.length > 1 ? `1-${Math.ceil(d.aspects.length / 2)}, ${Math.ceil(d.aspects.length / 2) + 1}-${d.aspects.length}` : '1')
+      setRanges(defaultRanges(d.aspects.length))
     })
 
-  // Grupos de páginas que se generarán según el modo
-  const plan = useMemo((): { groups: number[][]; error?: string } => {
-    if (mode === 'select') return { groups: selected.size ? [[...selected].sort((a, b) => a - b)] : [] }
-    if (mode === 'each') return { groups: Array.from({ length: pageCount }, (_, i) => [i]) }
-    try {
-      return { groups: parseRanges(ranges, pageCount) }
-    } catch (err) {
-      return { groups: [], error: (err as Error).message }
-    }
-  }, [mode, selected, ranges, pageCount])
-
-  // Para colorear las páginas según el archivo al que irán (modo rangos)
-  const groupOf = useMemo(() => {
-    const m = new Map<number, number>()
-    if (mode === 'ranges') plan.groups.forEach((g, gi) => g.forEach((p) => m.set(p, gi)))
-    return m
-  }, [mode, plan])
+  const plan = useMemo(() => splitPlan(mode, selected, ranges, pageCount), [mode, selected, ranges, pageCount])
+  const groupOf = useMemo(() => groupIndex(mode, plan.groups), [mode, plan])
 
   const split = () =>
     run('Dividiendo…', async () => {
       if (!doc) return
       const blobs = await buildPdfs([doc.bytes], plan.groups.map((g) => g.map((page) => ({ source: 0, page }))))
       const base = safeFileName(baseName(doc.file.name))
-      const files = blobs.map((b, i) => {
-        const g = plan.groups[i]
-        const suffix = mode === 'select' ? 'extracto' : `p${rangeLabel(g)}`
-        return new File([b], `${base} ${suffix}.pdf`, { type: 'application/pdf' })
-      })
+      const files = blobs.map((b, i) => new File([b], outputFileName(base, mode, plan.groups[i]), { type: 'application/pdf' }))
       const thumb = files.length === 1 ? await firstPageThumbnail(files[0]) : undefined
       const detail = files.length === 1 ? pagesLabel(plan.groups[0].length) : `${files.length} archivos`
       setOutput({ files, thumb, detail })
@@ -90,9 +71,6 @@ export default function SplitPage() {
   }
 
   const n = plan.groups.length
-  const actionLabel = mode === 'select'
-    ? selected.size ? `Extraer ${pagesLabel(selected.size)}` : 'Selecciona páginas'
-    : n ? `Crear ${n} ${n === 1 ? 'archivo' : 'archivos'}` : 'Dividir'
 
   return (
     <div className="screen screen-fixed">
@@ -108,7 +86,7 @@ export default function SplitPage() {
           <div className="grid-header">
             <span>{selected.size ? `${selected.size} de ${pageCount} seleccionadas` : 'Toca las páginas que quieres extraer'}</span>
             <button type="button" className="bar-button"
-              onClick={() => setSelected(selected.size === pageCount ? new Set() : new Set(Array.from({ length: pageCount }, (_, i) => i)))}>
+              onClick={() => setSelected(selected.size === pageCount ? new Set() : range(pageCount))}>
               {selected.size === pageCount ? 'Ninguna' : 'Todas'}
             </button>
           </div>
@@ -142,12 +120,7 @@ export default function SplitPage() {
                 label={mode === 'ranges' && g !== undefined ? <span className="group-chip" data-group={g % 6}>{i + 1}</span> : i + 1}
                 selected={mode === 'select' ? selected.has(i) : undefined}
                 dimmed={mode === 'ranges' && g === undefined}
-                onClick={mode === 'select' ? () => setSelected((prev) => {
-                  const next = new Set(prev)
-                  if (next.has(i)) next.delete(i)
-                  else next.add(i)
-                  return next
-                }) : undefined}
+                onClick={mode === 'select' ? () => setSelected((prev) => toggled(prev, i)) : undefined}
               />
             )
           })}
@@ -158,7 +131,7 @@ export default function SplitPage() {
           <button type="button" className="icon-button" aria-label="Abrir otro PDF" onClick={() => fileInput.current?.click()}>
             <FileUp size={22} />
           </button>
-          <button type="button" className="btn btn-primary" disabled={!n} onClick={split}>{actionLabel}</button>
+          <button type="button" className="btn btn-primary" disabled={!n} onClick={split}>{actionLabel(mode, selected.size, n)}</button>
         </div>
       </footer>
       <PdfInput inputRef={fileInput} onFiles={([f]) => void open(f)} />

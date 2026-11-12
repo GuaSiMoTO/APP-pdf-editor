@@ -1,6 +1,7 @@
 import { Image as ImageIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { baseName, safeFileName } from '../lib/pdfOps'
+import { range, toggled } from '../lib/sets'
 import { loadPdfFile, useOpenPdf } from '../lib/usePdf'
 import { OptionRow, Segmented } from '../ui/controls'
 import { ExportView } from '../ui/ExportView'
@@ -30,7 +31,7 @@ export default function PdfToImagesPage() {
     run('Abriendo PDF…', async () => {
       const d = await loadPdfFile(file)
       setDoc(d)
-      setSelected(new Set(d.aspects.map((_, i) => i))) // por defecto, todas
+      setSelected(range(d.aspects.length)) // por defecto, todas
     })
 
   const convert = () =>
@@ -91,19 +92,14 @@ export default function PdfToImagesPage() {
         <div className="grid-header">
           <span>{selected.size} de {total} páginas</span>
           <button type="button" className="bar-button"
-            onClick={() => setSelected(all ? new Set() : new Set(Array.from({ length: total }, (_, i) => i)))}>
+            onClick={() => setSelected(all ? new Set() : range(total))}>
             {all ? 'Ninguna' : 'Todas'}
           </button>
         </div>
         <div className="tile-grid">
           {doc.aspects.map((_, i) => (
             <PageTile key={i} doc={doc.view} index={i} label={i + 1} selected={selected.has(i)}
-              onClick={() => setSelected((prev) => {
-                const next = new Set(prev)
-                if (next.has(i)) next.delete(i)
-                else next.add(i)
-                return next
-              })} />
+              onClick={() => setSelected((prev) => toggled(prev, i))} />
           ))}
         </div>
       </main>
