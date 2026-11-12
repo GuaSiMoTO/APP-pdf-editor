@@ -123,7 +123,7 @@ python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
 #  "C:\Python314\python.exe ... multiprocessing.spawn" y detenerlo)
 .venv/Scripts/python -m pip install -r requirements-dev.txt
 .venv/Scripts/python -m pytest -q          # tests (los de Ghostscript/OCR/LibreOffice se saltan fuera de Docker)
-.venv/Scripts/python -m pytest -q -k unlock   # filtrar por nombre
+.venv/Scripts/python -m pytest -q -k desbloquear   # filtrar por nombre
 ```
 En Windows nativo faltan gs/qpdf/ocrmypdf/tesseract/soffice; las herramientas que los necesiten solo funcionan dentro de Docker.
 
