@@ -68,7 +68,7 @@ Herramientas del servidor (`server/app/tools.py` + `web/src/pages/ServerToolPage
 - Errores para el usuario: lanzar `ToolError("mensaje")` → 422 con `detail`. Semáforo de 2 trabajos simultáneos; carpeta temporal por petición borrada tras responder.
 - Frontend: añadir una herramienta de servidor = una entrada en `CONFIGS` de `ServerToolPage.tsx` (accept, opciones, validación, texto del resultado). `runServerTool` envía `file` + `options` (JSON) y lee el nombre de `Content-Disposition` y `X-Original-Size`.
 
-Pruebas: no hay suite en el repo; la geometría se ha verificado con scripts Node contra pdf-lib/pdf.js reales (Node 24 ejecuta `.ts` directamente; hace falta un hook de resolución para imports sin extensión).
+Tests: la lógica de PDF y geometría se prueba con pdf-lib y pdf.js **reales** (sin mocks), leyendo el resultado como lo vería el usuario. `web/src/test/pdfHelpers.ts` tiene `TRICKY_PAGES` (páginas con /Rotate 90/180/270 y CropBox desplazado), `viewedText` y `viewedImageCorners`: cualquier código que coloque contenido en páginas debe probarse contra esas variantes. Los componentes React no tienen tests.
 
 ## Estructura
 
@@ -80,11 +80,15 @@ Contrato frontend ↔ backend: `POST /api/tools/{tool}` con `multipart/form-data
 
 ## Comandos
 
+Desde la raíz (atajos de `package.json`): `npm run dev`, `npm run api`, `npm run build`, `npm run lint`, `npm test` (frontend + servidor).
+
 Frontend (en `web/`):
 ```
 npm run dev       # https://<IP-del-PC>:5173 accesible desde el iPhone (aceptar el certificado autofirmado)
 npm run build     # tsc -b + vite build → web/dist (genera service worker y manifest)
 npm run lint      # oxlint
+npm test          # Vitest (src/**/*.test.ts, entorno node)
+npx vitest run src/lib/pdfOps.test.ts -t "une documentos"   # un archivo / un test
 npx pwa-assets-generator --preset minimal-2023 public/logo.svg   # regenerar iconos tras cambiar el logo
 ```
 
@@ -92,6 +96,9 @@ Backend (en `server/`, Windows / Git Bash):
 ```
 python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
 .venv/Scripts/fastapi dev app/main.py     # http://localhost:8000
+.venv/Scripts/python -m pip install -r requirements-dev.txt
+.venv/Scripts/python -m pytest -q          # tests (los de Ghostscript/OCR/LibreOffice se saltan fuera de Docker)
+.venv/Scripts/python -m pytest -q -k unlock   # filtrar por nombre
 ```
 En Windows nativo faltan gs/qpdf/ocrmypdf/tesseract/soffice; las herramientas que los necesiten solo funcionan dentro de Docker.
 

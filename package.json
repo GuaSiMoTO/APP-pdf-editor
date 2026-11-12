@@ -6,6 +6,8 @@
     "dev": "npm --prefix web run dev",
     "api": "cd server && .venv\\Scripts\\fastapi dev app/main.py",
     "build": "npm --prefix web run build",
-    "lint": "npm --prefix web run lint"
+    "lint": "npm --prefix web run lint",
+    "test": "npm --prefix web test && npm run test:api",
+    "test:api": "cd server && .venv\\Scripts\\python -m pytest -q"
   }
 }
