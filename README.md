@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="/resources/icon.png" alt="Folio" width="112" height="112">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="resources/folio-logo-dark.png">
+    <img src="resources/folio-logo.png" alt="Folio" width="420">
+  </picture>
 </p>
 
 
