@@ -25,7 +25,7 @@ Solo las que necesitan programas de escritorio (OCR, compresión, conversión de
 ## Instalación
 
 ```bash
-git clone https://github.com/GuaSiMoTO/APP-pdf-editor.git folio && cd folio
+git clone https://github.com/GuaSiMoTO/APP-pdf-editor.git && cd folio
 
 # Frontend (PWA)
 npm --prefix web install
