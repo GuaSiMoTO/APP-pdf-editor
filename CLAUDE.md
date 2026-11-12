@@ -41,6 +41,29 @@ Flujo de `ScanPage.tsx`: foto (`<input capture="environment">`, más fiable en i
 - Trazo de la firma en `ink.ts` (grosor según velocidad o presión del Pencil); se guarda como PNG transparente recortado en `localStorage` (`lib/signatures.ts`).
 - `ui/ExportView.tsx` es la pantalla final común (Compartir / Descargar + acciones extra): reutilizarla en las demás herramientas.
 
+## Herramientas de páginas (`web/src/pages/`)
+
+Unir, Dividir y Organizar comparten piezas; reutilizarlas en herramientas nuevas:
+- `lib/pdfOps.ts` → `buildPdfs(sources, outputs)`: toda operación de páginas (unir, extraer, reordenar, girar, duplicar) es una lista de `PageRef {source, page, rotate}` por archivo de salida. Copia en bloque por fuente para no duplicar fuentes/imágenes. También `parseRanges` ("1-3, 5").
+- `lib/usePdf.ts` → `loadPdfFile` / `useOpenPdf` (bytes + documento pdf.js + proporciones; libera el anterior).
+- `ui/PageThumb.tsx` (miniatura perezosa con caché por documento), `ui/PageTile.tsx` (tarjeta con selección estilo Fotos), `ui/OpenPdfEmpty.tsx` + `PdfInput`, `ui/useTask.ts` (HUD + errores).
+- `ui/useSortable.ts`: reordenar por arrastre táctil; pulsación larga en rejillas, `data-drag-handle` en listas. Bloquea el scroll de iOS con un `touchmove` no pasivo durante el arrastre.
+- `ui/ExportView.tsx` acepta varios archivos (`files[]`): los comparte todos o descarga un ZIP (`fflate`, sin recomprimir).
+
+Texto sobre páginas (marca de agua, números; reutilizar para "Añadir texto"):
+- `lib/pageGeometry.ts` → `viewOf(page)`: tamaño visto y `toUser(vx, vy)` (coordenadas vistas, y hacia abajo → espacio PDF), equivalente a `convertToPdfPoint` de pdf.js.
+- `lib/textMarks.ts`: la disposición (`watermarkMarks`, `numberMarks` → `TextMark[]`) son funciones puras en coordenadas vistas que usan **a la vez** la vista previa (`ui/MarkPreview.tsx`, SVG sobre la página renderizada) y `applyTextMarks` (pdf-lib, rotación = ángulo + /Rotate). Así la vista previa coincide con el resultado.
+- Fuentes estándar Helvetica (WinAnsi): admiten acentos y ñ, no emojis (se avisa con un error claro).
+- Controles de formulario iOS en `ui/controls.tsx` (`OptionRow`, `Segmented`, `Switch`, `Slider`, `ColorDots`).
+
+Anotaciones (`web/src/annotate/`, herramienta "Añadir texto"):
+- Modelo en `lib/annotations.ts`: `text | rect (highlight/cover) | mark (✓/✗) | ink`, en puntos vistos (usa `OpenPdf.sizes`). La geometría (`textBaselines`, `markStrokes`, `bounds`, `moved`, `resized`) la comparten el SVG de `AnnotPage.tsx` y `applyAnnotations` (pdf-lib). Resaltado con `BlendMode.Multiply`.
+- "Tapar" es un rectángulo blanco encima: **no** es una redacción segura (el texto sigue en el PDF); la UI lo avisa.
+- Deshacer: `AnnotatePage` guarda instantáneas (`snapshot()`) antes de crear/borrar/editar y al empezar a mover (`onBegin`).
+- Arrastres y dibujo bloquean el scroll de iOS con `ui/scrollLock.ts` (`setScrollLocked`), también en las firmas.
+
+Pruebas: no hay suite en el repo; la geometría se ha verificado con scripts Node contra pdf-lib/pdf.js reales (Node 24 ejecuta `.ts` directamente; hace falta un hook de resolución para imports sin extensión).
+
 ## Estructura
 
 - `web/` — PWA: Vite + React + TypeScript, `react-router-dom`, `vite-plugin-pwa`. `src/tools.ts` es el catálogo de herramientas (cada una se marca `ready: true` al implementarla); `src/api.ts` es el cliente del backend.
@@ -76,6 +99,7 @@ docker compose up --build
 1. ✅ Estructura base
 2. ✅ Escanear → PDF (OpenCV.js, multipágina) — pendiente de validar con fotos reales en iPhone
 3. ✅ Firma manuscrita (dibujar, guardar, colocar sobre la página) — pendiente de validar en iPhone
-4. Organizar en local: unir, dividir, rotar, reordenar, borrar páginas
+4. ✅ Organizar en local: unir, dividir, rotar, reordenar, borrar páginas — pendiente de validar en iPhone
+4b. ✅ Locales: imágenes ↔ PDF, marca de agua, numerar páginas — pendiente de validar en iPhone
 5. Herramientas de servidor: comprimir, OCR, conversiones, proteger/desbloquear
-6. Añadir texto y anotaciones (editar el texto existente de un PDF queda fuera de alcance)
+6. ✅ Añadir texto y anotaciones (editar el texto existente de un PDF queda fuera de alcance) — pendiente de validar en iPhone

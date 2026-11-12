@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { renderPage, type PdfDoc } from '../lib/pdfjs'
 import type { Placement } from './stamp'
+import { setScrollLocked } from '../ui/scrollLock'
 
 const MIN_NW = 0.08
 
@@ -49,6 +50,7 @@ export function PageView({ doc, index, width, aspect, placements, selectedId, on
     e.stopPropagation()
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
     drag.current = { id: p.id, mode, startX: e.clientX, startY: e.clientY, orig: p }
+    setScrollLocked(true)
     onSelect(p.id)
   }
 
@@ -74,6 +76,7 @@ export function PageView({ doc, index, width, aspect, placements, selectedId, on
 
   const endDrag = () => {
     drag.current = null
+    setScrollLocked(false)
   }
 
   return (

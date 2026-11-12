@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loadOpenCv, type Cv } from '../lib/opencv'
 import { jpegsToPdf } from '../lib/pdf'
+import { pagesLabel } from '../lib/share'
 import { ExportView } from '../ui/ExportView'
 import { FitCanvas } from '../ui/FitCanvas'
 import { Loading } from '../ui/Loading'
@@ -246,8 +247,8 @@ export default function ScanPage() {
   if (view === 'export' && pdf) {
     return (
       <ExportView
-        file={pdf}
-        pageCount={pages.length}
+        files={[pdf]}
+        detail={pagesLabel(pages.length)}
         thumbUrl={pages[0]?.url}
         back={{ onClick: () => setView('pages'), label: 'Editar' }}
         extraActions={

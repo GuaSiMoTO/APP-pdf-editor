@@ -1,36 +1,32 @@
 import { FileUp, Plus, Signature, Trash } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { closePdf, firstPageThumbnail, openPdf, type PdfDoc } from '../lib/pdfjs'
+import { firstPageThumbnail } from '../lib/pdfjs'
+import { pagesLabel } from '../lib/share'
 import { loadSignatures, storeSignatures, type SavedSignature } from '../lib/signatures'
+import { loadPdfFile, useOpenPdf } from '../lib/usePdf'
 import { ExportView } from '../ui/ExportView'
 import { Loading } from '../ui/Loading'
 import { NavBar } from '../ui/NavBar'
 import { Sheet } from '../ui/Sheet'
 import { useElementSize } from '../ui/useElementSize'
+import { useTask } from '../ui/useTask'
 import { PageView } from './PageView'
 import { SignaturePad } from './SignaturePad'
 import { stampSignatures, type Placement } from './stamp'
-
-interface OpenDoc {
-  file: File
-  bytes: ArrayBuffer
-  view: PdfDoc
-  aspects: number[] // alto/ancho de cada página
-}
 
 const PAGE_GAP = 16
 const DEFAULT_NW = 0.32
 
 export default function SignPage() {
   const location = useLocation()
-  const [doc, setDoc] = useState<OpenDoc | null>(null)
+  const [doc, setDoc] = useOpenPdf()
   const [placements, setPlacements] = useState<Placement[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [signatures, setSignatures] = useState<SavedSignature[]>(loadSignatures)
   const [sheet, setSheet] = useState(false)
   const [pad, setPad] = useState(false)
-  const [busy, setBusy] = useState<string | null>(null)
+  const { busy, run } = useTask()
   const [output, setOutput] = useState<{ file: File; thumb: string } | null>(null)
 
   const fileInput = useRef<HTMLInputElement>(null)
@@ -38,28 +34,9 @@ export default function SignPage() {
   const size = useElementSize(scrollRef)
   const pageWidth = size ? Math.min(size.width - 32, 760) : 0
 
-  const run = async (label: string, task: () => Promise<void>) => {
-    setBusy(label)
-    try {
-      await task()
-    } catch (err) {
-      console.error(err)
-      alert((err as Error).message)
-    } finally {
-      setBusy(null)
-    }
-  }
-
   const open = (file: File) =>
     run('Abriendo PDF…', async () => {
-      const bytes = await file.arrayBuffer()
-      const view = await openPdf(bytes)
-      const aspects: number[] = []
-      for (let i = 1; i <= view.numPages; i++) {
-        const vp = (await view.getPage(i)).getViewport({ scale: 1 })
-        aspects.push(vp.height / vp.width)
-      }
-      setDoc({ file, bytes, view, aspects }) // el efecto de limpieza destruye el anterior
+      setDoc(await loadPdfFile(file))
       setPlacements([])
       setOutput(null)
     })
@@ -70,8 +47,6 @@ export default function SignPage() {
     if (incoming) void open(incoming)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  useEffect(() => () => void (doc && closePdf(doc.view)), [doc])
 
   // ---------- Firmas ----------
 
@@ -143,8 +118,8 @@ export default function SignPage() {
   if (output && doc) {
     return (
       <ExportView
-        file={output.file}
-        pageCount={doc.aspects.length}
+        files={[output.file]}
+        detail={pagesLabel(doc.aspects.length)}
         thumbUrl={output.thumb}
         back={{ onClick: () => { URL.revokeObjectURL(output.thumb); setOutput(null) }, label: 'Editar' }}
       />

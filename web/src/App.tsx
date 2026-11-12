@@ -10,6 +10,14 @@ import { NavBar } from './ui/NavBar'
 const TOOL_PAGES: Record<string, React.LazyExoticComponent<() => React.JSX.Element>> = {
   scan: lazy(() => import('./scan/ScanPage')),
   sign: lazy(() => import('./sign/SignPage')),
+  merge: lazy(() => import('./pages/MergePage')),
+  split: lazy(() => import('./pages/SplitPage')),
+  organize: lazy(() => import('./pages/OrganizePage')),
+  'jpg-to-pdf': lazy(() => import('./pages/ImagesToPdfPage')),
+  'pdf-to-jpg': lazy(() => import('./pages/PdfToImagesPage')),
+  watermark: lazy(() => import('./pages/WatermarkPage')),
+  'page-numbers': lazy(() => import('./pages/PageNumbersPage')),
+  annotate: lazy(() => import('./annotate/AnnotatePage')),
 }
 
 export default function App() {
